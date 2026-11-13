@@ -201,7 +201,7 @@ node tests/run-tests.js
 node load-tests/runner.js
 ```
 - **What to say:**
-  > "In summary, our test suite runs 48 automated checks over real HTTP against the real PostgreSQL, Redis and RabbitMQ, all passing. In our load test, normal traffic averaged 21.63 ms and heavy traffic 62.99 ms at 781 requests per second. In the 100-user spike the token bucket rejected 1,220 of 2,000 requests with HTTP 429 and there were no server errors. All architecture documentation and empirical benchmark reports are compiled in the submitted PDF deliverables."
+  > "In summary, our test suite runs 48 automated checks over real HTTP against the real PostgreSQL, Redis and RabbitMQ, all passing. In our load test, normal traffic averaged 117 ms and heavy traffic 314 ms at about 156 requests per second, on a single laptop that also runs the load generator. In the 100-user spike the token bucket rejected 79 of 2,000 requests with HTTP 429 and there were no server errors. Order placement stayed fast because the heavy work goes through RabbitMQ: all 100 orders were accepted and the workers finished 1.8 seconds after the last response. All architecture documentation and empirical benchmark reports are compiled in the submitted PDF deliverables."
 
 ---
 
@@ -265,7 +265,7 @@ Weights ($w_1 = 0.50$, $w_2 = 0.30$, $w_3 = 0.20$) prioritize closer riders whil
 **Answer:** Docker Compose creates an internal DNS resolver on user-defined bridge networks. Each container can resolve peer containers by their service name (e.g. `http://order-service:4003` or `postgres:5432`), eliminating hardcoded IP addresses and allowing containers to be recreated with dynamic IP allocations without breaking configuration.
 
 #### Q17: What was the observed impact of traffic spikes during your load tests?
-**Answer:** Under our 100 VU traffic spike test (2000 requests), average latency went from 21.63 ms (normal load) to 62.63 ms. The token bucket rejected 1,220 requests with HTTP 429 in the gateway, so they never reached the services or PostgreSQL, and there were 0 server errors.
+**Answer:** Under our 100 VU traffic spike test (2000 requests), average latency went from 117 ms (normal load) to 509 ms, with a slow tail (p99 about 4.2 s) because everything shares one laptop. The token bucket rejected 79 requests with HTTP 429 in the gateway, so they never reached the services or PostgreSQL, and there were 0 server errors.
 
 #### Q18: What is the Transactional Outbox pattern, and why is it relevant here?
 **Answer:** In distributed systems, updating a database and publishing an event to a message broker are two distinct operations. If the broker is down after the DB commit, data becomes inconsistent. The Transactional Outbox pattern writes the outgoing event into an `outbox` table within the same database transaction. A background relay process then reads from the outbox and publishes to RabbitMQ with guaranteed at-least-once delivery.

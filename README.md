@@ -139,17 +139,17 @@ k6 scripts are in `load-tests/k6/` (`k6 run load-tests/k6/spike_load.js`).
 
 ### Example results
 
-These come from `load-tests/results/actual_test_run.json`, measured on one 2-core machine that also ran the load generator, so treat them as indicative. Re-run on your own machine and regenerate the report before submitting it.
+These come from `load-tests/results/actual_test_run.json`, measured on one 8-core Windows laptop that also ran the load generator and all containers, so treat them as indicative. Re-run on your own machine and regenerate the report if you change anything.
 
 | Scenario (GET /api/restaurants) | VUs | Requests | Req/s | Avg | p95 | p99 | HTTP 429 |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| Normal traffic | 10 | 200 | 450 | 21.63 ms | 38.3 ms | 60.95 ms | 0 (0%) |
-| Heavy traffic | 50 | 1,000 | 781 | 62.99 ms | 93.91 ms | 119.14 ms | 0 (0%) |
-| Traffic spike | 100 | 2,000 | 1,582 | 62.63 ms | 138.47 ms | 180.2 ms | 1,220 (61%) |
-| Single-client burst | 1 | 50 | 685 | 1.47 ms | 2.62 ms | 5.31 ms | 30 (60%) |
+| Normal traffic | 10 | 200 | 83 | 117.31 ms | 208.06 ms | 233.48 ms | 0 (0%) |
+| Heavy traffic | 50 | 1,000 | 155.7 | 314.29 ms | 425.5 ms | 1508.67 ms | 0 (0%) |
+| Traffic spike | 100 | 2,000 | 192.6 | 509.47 ms | 637.18 ms | 4242.63 ms | 79 (4%) |
+| Single-client burst | 1 | 50 | 115.2 | 8.67 ms | 33.95 ms | 43.53 ms | 28 (56%) |
 
-- Cache: miss (PostgreSQL) averaged 2.15 ms, hit (Redis) 2.02 ms. The difference is small for this tiny query; the cache matters more as load grows.
-- Async pipeline: 100 of 100 orders accepted by the API (avg 83.18 ms); the workers had written all kitchen-queue rows 3.04 s after the last API response.
+- Cache: miss (PostgreSQL) averaged 12.95 ms, hit (Redis) 18.21 ms. There was no measurable gain on this machine: the query is tiny and most latency is the gateway hop both paths share. The cache matters more as load on PostgreSQL grows.
+- Async pipeline: 100 of 100 orders accepted by the API (avg 558.46 ms); the workers had written all kitchen-queue rows 1.81 s after the last API response.
 
 ---
 
