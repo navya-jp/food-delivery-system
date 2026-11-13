@@ -1,0 +1,40 @@
+{
+  "name": "food-delivery-order-kitchen-management-system",
+  "version": "1.0.0",
+  "description": "Distributed Food Delivery and Kitchen Management System for Distributed Systems & System Design",
+  "type": "module",
+  "main": "api-gateway/src/index.js",
+  "scripts": {
+    "start": "node server.js",
+    "start:local": "ALLOW_IN_MEMORY_FALLBACK=true node server.js",
+    "seed": "node database/seed/seed.js",
+    "test": "node tests/run-tests.js",
+    "load-test": "node load-tests/runner.js",
+    "generate-docs": "python docs/diagrams/generate_diagrams.py && python docs/generate_master_documentation_pdf.py && python docs/generate_load_test_pdf.py"
+  },
+  "dependencies": {
+    "amqplib": "^0.10.4",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "pg": "^8.12.0",
+    "redis": "^4.7.0"
+  },
+  "devDependencies": {},
+  "keywords": [
+    "distributed-systems",
+    "system-design",
+    "microservices",
+    "api-gateway",
+    "rate-limiting",
+    "token-bucket",
+    "redis",
+    "rabbitmq",
+    "circuit-breaker",
+    "fault-tolerance"
+  ],
+  "author": "Food Delivery Order & Kitchen Management System team",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  }
+}

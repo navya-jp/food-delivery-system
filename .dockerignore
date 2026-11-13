@@ -1,0 +1,7 @@
+node_modules
+npm-debug.log
+.git
+*.pdf
+docs
+load-tests/results
+.env

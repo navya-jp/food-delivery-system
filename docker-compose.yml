@@ -1,0 +1,388 @@
+# Food Delivery Order & Kitchen Management System
+# `docker compose up --build` starts: PostgreSQL, Redis, RabbitMQ, a one-shot DB seeder,
+# 7 microservices, the API gateway (only public API entry point), 2 order workers,
+# 1 notification worker and the web frontend.
+
+x-node-env: &node-env
+  NODE_ENV: production
+  ALLOW_IN_MEMORY_FALLBACK: "false"   # never silently fall back to in-memory stores in Docker
+
+services:
+  # ==========================================
+  # INFRASTRUCTURE
+  # ==========================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: food_delivery_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_password
+      POSTGRES_DB: food_delivery_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/init.sql:ro   # runs once on a fresh volume
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d food_delivery_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [food_delivery_network]
+
+  redis:
+    image: redis:7-alpine
+    container_name: food_delivery_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [food_delivery_network]
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: food_delivery_rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"     # AMQP
+      - "15672:15672"   # Management UI (guest / guest)
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [food_delivery_network]
+
+  # One-shot job: inserts demo data into an EMPTY database, then exits.
+  db-seed:
+    build:
+      context: .
+      dockerfile: api-gateway/Dockerfile
+    container_name: food_delivery_db_seed
+    command: ["node", "database/seed/seed.js"]
+    restart: "no"
+    environment:
+      <<: *node-env
+      DATABASE_URL: postgresql://postgres:postgres_password@postgres:5432/food_delivery_db
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [food_delivery_network]
+
+  # ==========================================
+  # BACKEND MICROSERVICES (internal network only: reachable solely through the gateway)
+  # ==========================================
+  auth-service:
+    build:
+      context: .
+      dockerfile: services/auth-service/Dockerfile
+    container_name: food_delivery_auth
+    restart: unless-stopped
+    expose:
+      - "4001"
+    environment:
+      <<: *node-env
+      PORT_AUTH: "4001"
+      STANDALONE_SERVICE: "true"
+      DATABASE_URL: postgresql://postgres:postgres_password@postgres:5432/food_delivery_db
+      JWT_SECRET: "${JWT_SECRET:-change_me_in_env_file}"
+    depends_on:
+      db-seed:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:4001/health >/dev/null || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    networks: [food_delivery_network]
+
+  restaurant-service:
+    build:
+      context: .
+      dockerfile: services/restaurant-service/Dockerfile
+    container_name: food_delivery_restaurant
+    restart: unless-stopped
+    expose:
+      - "4002"
+    environment:
+      <<: *node-env
+      PORT_RESTAURANT: "4002"
+      STANDALONE_SERVICE: "true"
+      DATABASE_URL: postgresql://postgres:postgres_password@postgres:5432/food_delivery_db
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      db-seed:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:4002/health >/dev/null || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    networks: [food_delivery_network]
+
+  order-service:
+    build:
+      context: .
+      dockerfile: services/order-service/Dockerfile
+    container_name: food_delivery_order
+    restart: unless-stopped
+    expose:
+      - "4003"
+    environment:
+      <<: *node-env
+      PORT_ORDER: "4003"
+      STANDALONE_SERVICE: "true"
+      DATABASE_URL: postgresql://postgres:postgres_password@postgres:5432/food_delivery_db
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+    depends_on:
+      db-seed:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:4003/health >/dev/null || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    networks: [food_delivery_network]
+
+  kitchen-service:
+    build:
+      context: .
+      dockerfile: services/kitchen-service/Dockerfile
+    container_name: food_delivery_kitchen
+    restart: unless-stopped
+    expose:
+      - "4004"
+    environment:
+      <<: *node-env
+      PORT_KITCHEN: "4004"
+      STANDALONE_SERVICE: "true"
+      DATABASE_URL: postgresql://postgres:postgres_password@postgres:5432/food_delivery_db
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+    depends_on:
+      db-seed:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:4004/health >/dev/null || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    networks: [food_delivery_network]
+
+  payment-service:
+    build:
+      context: .
+      dockerfile: services/payment-service/Dockerfile
+    container_name: food_delivery_payment
+    restart: unless-stopped
+    expose:
+      - "4005"
+    environment:
+      <<: *node-env
+      PORT_PAYMENT: "4005"
+      STANDALONE_SERVICE: "true"
+      DATABASE_URL: postgresql://postgres:postgres_password@postgres:5432/food_delivery_db
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+    depends_on:
+      db-seed:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:4005/health >/dev/null || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    networks: [food_delivery_network]
+
+  delivery-service:
+    build:
+      context: .
+      dockerfile: services/delivery-service/Dockerfile
+    container_name: food_delivery_delivery
+    restart: unless-stopped
+    expose:
+      - "4006"
+    environment:
+      <<: *node-env
+      PORT_DELIVERY: "4006"
+      STANDALONE_SERVICE: "true"
+      DATABASE_URL: postgresql://postgres:postgres_password@postgres:5432/food_delivery_db
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+    depends_on:
+      db-seed:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:4006/health >/dev/null || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    networks: [food_delivery_network]
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: services/notification-service/Dockerfile
+    container_name: food_delivery_notification
+    restart: unless-stopped
+    expose:
+      - "4007"
+    environment:
+      <<: *node-env
+      PORT_NOTIFICATION: "4007"
+      STANDALONE_SERVICE: "true"
+      DATABASE_URL: postgresql://postgres:postgres_password@postgres:5432/food_delivery_db
+    depends_on:
+      db-seed:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:4007/health >/dev/null || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    networks: [food_delivery_network]
+
+  # ==========================================
+  # API GATEWAY (single public entry point: reverse proxy + rate limiter + health)
+  # ==========================================
+  api-gateway:
+    build:
+      context: .
+      dockerfile: api-gateway/Dockerfile
+    container_name: food_delivery_gateway
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      <<: *node-env
+      PORT_GATEWAY: "8080"
+      STANDALONE_GATEWAY: "true"
+      AUTH_SERVICE_URL: http://auth-service:4001
+      RESTAURANT_SERVICE_URL: http://restaurant-service:4002
+      ORDER_SERVICE_URL: http://order-service:4003
+      KITCHEN_SERVICE_URL: http://kitchen-service:4004
+      PAYMENT_SERVICE_URL: http://payment-service:4005
+      DELIVERY_SERVICE_URL: http://delivery-service:4006
+      NOTIFICATION_SERVICE_URL: http://notification-service:4007
+      REDIS_URL: redis://redis:6379
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      DATABASE_URL: postgresql://postgres:postgres_password@postgres:5432/food_delivery_db
+      TRUST_PROXY: ${TRUST_PROXY:-false}   # true ONLY for load tests: lets virtual users send distinct X-Forwarded-For
+      RATE_LIMIT_CAPACITY: ${RATE_LIMIT_CAPACITY:-20}
+      RATE_LIMIT_REFILL_RATE: ${RATE_LIMIT_REFILL_RATE:-5}
+    depends_on:
+      db-seed:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+      restaurant-service:
+        condition: service_healthy
+      order-service:
+        condition: service_healthy
+      kitchen-service:
+        condition: service_healthy
+      payment-service:
+        condition: service_healthy
+      delivery-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/ >/dev/null || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [food_delivery_network]
+
+  # ==========================================
+  # ASYNCHRONOUS WORKER POOL (consume RabbitMQ queues, write to PostgreSQL)
+  # ==========================================
+  order-worker:
+    build:
+      context: .
+      dockerfile: workers/order-worker/Dockerfile
+    restart: unless-stopped
+    deploy:
+      replicas: 2          # a pool of 2 competing consumers
+    environment:
+      <<: *node-env
+      DATABASE_URL: postgresql://postgres:postgres_password@postgres:5432/food_delivery_db
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+    depends_on:
+      db-seed:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+    networks: [food_delivery_network]
+
+  notification-worker:
+    build:
+      context: .
+      dockerfile: workers/notification-worker/Dockerfile
+    container_name: food_delivery_notification_worker
+    restart: unless-stopped
+    environment:
+      <<: *node-env
+      DATABASE_URL: postgresql://postgres:postgres_password@postgres:5432/food_delivery_db
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+    depends_on:
+      db-seed:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+    networks: [food_delivery_network]
+
+  # ==========================================
+  # FRONTEND (nginx; forwards /api to the gateway)
+  # ==========================================
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: food_delivery_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - api-gateway
+    networks: [food_delivery_network]
+
+volumes:
+  postgres_data:
+  redis_data:
+  rabbitmq_data:
+
+networks:
+  food_delivery_network:
+    driver: bridge

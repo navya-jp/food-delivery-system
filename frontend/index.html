@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Food Delivery & Kitchen Management System | Distributed Microservices</title>
+  <!-- Tailwind CSS CDN for instant zero-dependency high-fidelity styling -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    .badge-closed { background-color: #10B981; color: white; }
+    .badge-open { background-color: #EF4444; color: white; animation: pulse 1.5s infinite; }
+    .badge-half-open { background-color: #F59E0B; color: white; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+  <!-- TOP HEADER & SYSTEM DEMO ROLE SWITCHER -->
+  <header class="bg-slate-900 text-white sticky top-0 z-50 shadow-md">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-500 flex items-center justify-center text-white shadow-lg shadow-orange-500/30">
+          <i class="fa-solid fa-utensils text-lg"></i>
+        </div>
+        <div>
+          <h1 class="font-extrabold text-lg leading-tight tracking-tight flex items-center gap-2">
+            FoodieCloud <span class="text-xs bg-orange-500/20 text-orange-400 border border-orange-500/30 px-2 py-0.5 rounded-full font-semibold">Microservices</span>
+          </h1>
+          <p class="text-xs text-slate-400">Distributed Order & Kitchen Management System</p>
+        </div>
+      </div>
+
+      <!-- Quick Role Switcher for Viva & Live Demo Evaluation -->
+      <div class="flex items-center gap-2 bg-slate-800/80 p-1.5 rounded-xl border border-slate-700 text-xs">
+        <span class="text-slate-400 px-2 font-medium hidden sm:inline"><i class="fa-solid fa-user-gear mr-1"></i> Demo View:</span>
+        <button onclick="switchRole('customer')" id="btn-role-customer" class="role-btn px-3 py-1.5 rounded-lg font-semibold bg-orange-600 text-white transition-all shadow-sm">
+          <i class="fa-solid fa-bag-shopping mr-1"></i> Customer
+        </button>
+        <button onclick="switchRole('kitchen')" id="btn-role-kitchen" class="role-btn px-3 py-1.5 rounded-lg font-medium text-slate-300 hover:text-white transition-all">
+          <i class="fa-solid fa-fire-burner mr-1"></i> Kitchen
+        </button>
+        <button onclick="switchRole('delivery')" id="btn-role-delivery" class="role-btn px-3 py-1.5 rounded-lg font-medium text-slate-300 hover:text-white transition-all">
+          <i class="fa-solid fa-motorcycle mr-1"></i> Delivery
+        </button>
+        <button onclick="switchRole('restaurant')" id="btn-role-restaurant" class="role-btn px-3 py-1.5 rounded-lg font-medium text-slate-300 hover:text-white transition-all">
+          <i class="fa-solid fa-store mr-1"></i> Restaurant
+        </button>
+        <button onclick="switchRole('admin')" id="btn-role-admin" class="role-btn px-3 py-1.5 rounded-lg font-medium text-slate-300 hover:text-white transition-all bg-indigo-900/40 text-indigo-300 border border-indigo-700/50">
+          <i class="fa-solid fa-server mr-1"></i> System Design
+        </button>
+      </div>
+
+      <!-- Live Health Pill -->
+      <div id="header-health-pill" class="flex items-center gap-2 px-3 py-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-full text-xs font-semibold cursor-pointer" onclick="switchRole('admin')">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span id="gateway-status-text">Gateway Online</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN CONTAINER -->
+  <main class="flex-grow max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6">
+
+    <!-- ============================================================== -->
+    <!-- VIEW 1: CUSTOMER MODULE                                        -->
+    <!-- ============================================================== -->
+    <div id="view-customer" class="space-y-6">
+      <!-- Search & Filters -->
+      <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/80 flex flex-col md:flex-row gap-4 items-center justify-between">
+        <div class="relative w-full md:w-96">
+          <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3.5 text-slate-400"></i>
+          <input type="text" id="cust-search" oninput="filterRestaurants()" placeholder="Search restaurants, cuisines, dishes..." class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm" />
+        </div>
+        <div class="flex items-center gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0 text-xs">
+          <button onclick="setFilterCuisine('')" class="cuisine-btn px-3 py-1.5 rounded-lg bg-orange-600 text-white font-semibold">All</button>
+          <button onclick="setFilterCuisine('American')" class="cuisine-btn px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200">Burgers</button>
+          <button onclick="setFilterCuisine('Italian')" class="cuisine-btn px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200">Italian</button>
+          <button onclick="setFilterCuisine('Indian')" class="cuisine-btn px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200">Indian</button>
+          <button onclick="setFilterCuisine('Japanese')" class="cuisine-btn px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200">Japanese</button>
+        </div>
+        <!-- Cart Trigger Button -->
+        <button onclick="openCart()" class="relative px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-semibold flex items-center gap-2 shadow-sm transition-all">
+          <i class="fa-solid fa-basket-shopping"></i> View Cart
+          <span id="cart-count-badge" class="px-2 py-0.5 bg-white text-orange-600 rounded-full text-xs font-bold">0</span>
+        </button>
+      </div>
+
+      <!-- Restaurant Grid -->
+      <div>
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-xl font-bold text-slate-900">Featured Restaurants</h2>
+          <span id="cache-indicator" class="text-xs font-medium text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
+            <i class="fa-solid fa-bolt mr-1"></i> Cached via Redis
+          </span>
+        </div>
+        <div id="restaurants-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <!-- Rendered dynamically -->
+          <div class="col-span-full py-12 text-center text-slate-400">Loading restaurants through API Gateway...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- VIEW 2: KITCHEN DASHBOARD                                      -->
+    <!-- ============================================================== -->
+    <div id="view-kitchen" class="space-y-6 hidden">
+      <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-4">
+        <div>
+          <h2 class="text-xl font-bold text-slate-900 flex items-center gap-2">
+            <i class="fa-solid fa-fire-burner text-orange-500"></i> Live Kitchen Management Dashboard
+          </h2>
+          <p class="text-sm text-slate-500">Atomic concurrency locking, prioritization algorithm & prep time estimation</p>
+        </div>
+        <!-- Workload Meter -->
+        <div class="flex items-center gap-4 bg-slate-50 px-4 py-3 rounded-xl border border-slate-200 text-xs">
+          <div>
+            <div class="font-semibold text-slate-700">Kitchen Workload: <span id="kitchen-load-pct">0%</span></div>
+            <div class="w-32 bg-slate-200 h-2 rounded-full overflow-hidden mt-1">
+              <div id="kitchen-load-bar" class="bg-amber-500 h-full w-0 transition-all"></div>
+            </div>
+          </div>
+          <div class="text-slate-500 border-l border-slate-200 pl-4">
+            Capacity: <span id="kitchen-capacity" class="font-bold text-slate-800">12</span> orders
+          </div>
+        </div>
+      </div>
+
+      <!-- Kitchen Queue Grid -->
+      <div id="kitchen-queue-container" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <!-- Rendered dynamically -->
+      </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- VIEW 3: DELIVERY DASHBOARD                                     -->
+    <!-- ============================================================== -->
+    <div id="view-delivery" class="space-y-6 hidden">
+      <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex justify-between items-center">
+        <div>
+          <h2 class="text-xl font-bold text-slate-900 flex items-center gap-2">
+            <i class="fa-solid fa-motorcycle text-blue-500"></i> Delivery Partner Dispatch
+          </h2>
+          <p class="text-sm text-slate-500">Multi-criteria Rider Assignment Algorithm (Distance + Workload + Rating)</p>
+        </div>
+        <div class="flex items-center gap-2 text-xs">
+          <span class="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full font-semibold">
+            <i class="fa-solid fa-circle text-[8px] mr-1"></i> Partner Online: Alex Rider
+          </span>
+        </div>
+      </div>
+
+      <div id="delivery-assignments-container" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Rendered dynamically -->
+      </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- VIEW 4: RESTAURANT OWNER DASHBOARD                             -->
+    <!-- ============================================================== -->
+    <div id="view-restaurant" class="space-y-6 hidden">
+      <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex justify-between items-center">
+        <div>
+          <h2 class="text-xl font-bold text-slate-900 flex items-center gap-2">
+            <i class="fa-solid fa-store text-emerald-500"></i> Restaurant Menu & Cache Invalidation
+          </h2>
+          <p class="text-sm text-slate-500">Modifying items instantly purges and invalidates Redis cache keys</p>
+        </div>
+        <button onclick="purgeCache()" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all">
+          <i class="fa-solid fa-trash-can text-red-500"></i> Purge All Caches
+        </button>
+      </div>
+
+      <div id="menu-management-container" class="space-y-4">
+        <!-- Rendered dynamically -->
+      </div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- VIEW 5: SYSTEM DESIGN, HEALTH & FAULT TOLERANCE VISUALIZER     -->
+    <!-- ============================================================== -->
+    <div id="view-admin" class="space-y-6 hidden">
+      <!-- Architecture Overview Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+          <div class="text-xs text-slate-500 font-medium">Total Orders Placed</div>
+          <div id="metric-orders" class="text-2xl font-extrabold text-slate-900 mt-1">-</div>
+          <div class="text-[11px] text-emerald-600 font-medium mt-1">PostgreSQL Persistent</div>
+        </div>
+        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+          <div class="text-xs text-slate-500 font-medium">System Gross Revenue</div>
+          <div id="metric-revenue" class="text-2xl font-extrabold text-emerald-600 mt-1">₹0.00</div>
+          <div class="text-[11px] text-slate-500 font-medium mt-1">Simulated Gateways</div>
+        </div>
+        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+          <div class="text-xs text-slate-500 font-medium">Active Kitchen Orders</div>
+          <div id="metric-kitchen" class="text-2xl font-extrabold text-amber-600 mt-1">-</div>
+          <div class="text-[11px] text-amber-600 font-medium mt-1">Queue & Locking Active</div>
+        </div>
+        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+          <div class="text-xs text-slate-500 font-medium">Delivery Assignments</div>
+          <div id="metric-deliveries" class="text-2xl font-extrabold text-blue-600 mt-1">-</div>
+          <div class="text-[11px] text-blue-600 font-medium mt-1">Intelligent Dispatch</div>
+        </div>
+      </div>
+
+      <!-- Live Microservices Health Matrix -->
+      <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+              <i class="fa-solid fa-heart-pulse text-red-500"></i> Microservices & Infrastructure Health Matrix
+            </h3>
+            <p class="text-xs text-slate-500">Reports real-time status of Gateway, Microservices, DB, Redis, and RabbitMQ via GET /health</p>
+          </div>
+          <button onclick="refreshHealth()" class="text-xs bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg font-medium text-slate-700">
+            <i class="fa-solid fa-rotate-right mr-1"></i> Refresh
+          </button>
+        </div>
+        <div id="health-grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 text-xs">
+          <!-- Rendered dynamically -->
+        </div>
+      </div>
+
+      <!-- Two-Column Interactive Tools: Rate Limiter & Circuit Breaker -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+        <!-- 1. Interactive Token Bucket Rate Limiter Tester -->
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
+          <div>
+            <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+              <i class="fa-solid fa-gauge-high text-indigo-500"></i> Token Bucket Rate Limiter Tester
+            </h3>
+            <p class="text-xs text-slate-500">Redis-backed atomic Lua rate limiting. Capacity: 20 tokens, Refill: 5/s.</p>
+          </div>
+
+          <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+            <div class="flex items-center justify-between text-xs font-semibold">
+              <span class="text-slate-600">Available Bucket Tokens:</span>
+              <span id="rate-tokens-display" class="text-indigo-600 font-bold text-sm">20 / 20</span>
+            </div>
+            <div class="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden">
+              <div id="rate-tokens-bar" class="bg-indigo-600 h-full w-full transition-all"></div>
+            </div>
+            <div class="flex gap-2">
+              <button onclick="fireBurstRequests(1)" class="flex-1 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg text-xs font-semibold">
+                Send 1 Request
+              </button>
+              <button onclick="fireBurstRequests(25)" class="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shadow-sm">
+                Fire 25 Burst (Triggers HTTP 429)
+              </button>
+              <button onclick="resetRateLimit()" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-medium">
+                Reset
+              </button>
+            </div>
+          </div>
+
+          <div id="rate-limit-log" class="bg-slate-900 text-slate-300 font-mono text-[11px] p-3 rounded-xl h-36 overflow-y-auto space-y-1">
+            <div class="text-slate-500">Click "Fire 25 Burst" to test Token Bucket rate limiter...</div>
+          </div>
+        </div>
+
+        <!-- 2. Interactive Circuit Breaker Controller -->
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                <i class="fa-solid fa-shield-halved text-emerald-500"></i> Payment Gateway Circuit Breaker
+              </h3>
+              <p class="text-xs text-slate-500">States: CLOSED -> OPEN -> HALF_OPEN. Trips after 3 failures.</p>
+            </div>
+            <span id="circuit-state-badge" class="px-3 py-1 rounded-full text-xs font-bold badge-closed">CLOSED</span>
+          </div>
+
+          <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+            <div class="text-xs text-slate-600 flex justify-between">
+              <span>Failure Count / Threshold:</span>
+              <span id="circuit-fail-count" class="font-bold text-slate-900">0 / 3</span>
+            </div>
+            <div class="flex gap-2">
+              <button onclick="testPayment(false)" class="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold">
+                Simulate Successful Payment
+              </button>
+              <button onclick="testPayment(true)" class="flex-1 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-semibold">
+                Simulate Downstream Failure
+              </button>
+              <button onclick="resetCircuit()" class="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-medium">
+                Reset
+              </button>
+            </div>
+          </div>
+
+          <div id="circuit-log" class="bg-slate-900 text-slate-300 font-mono text-[11px] p-3 rounded-xl h-36 overflow-y-auto space-y-1">
+            <div class="text-slate-500">Test payments or trigger failures to observe state machine transitions...</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+
+  <!-- CART SLIDE-OVER DRAWER -->
+  <div id="cart-drawer" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 hidden flex justify-end">
+    <div class="w-full max-w-md bg-white h-full shadow-2xl flex flex-col">
+      <div class="p-5 border-b border-slate-200 flex items-center justify-between">
+        <h3 class="font-bold text-slate-900 text-base flex items-center gap-2">
+          <i class="fa-solid fa-basket-shopping text-orange-500"></i> Your Food Cart
+        </h3>
+        <button onclick="closeCart()" class="text-slate-400 hover:text-slate-600 p-1">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div id="cart-items-list" class="flex-grow overflow-y-auto p-5 space-y-3">
+        <!-- Rendered dynamically -->
+      </div>
+
+      <!-- Pricing Summary & Checkout -->
+      <div class="p-5 border-t border-slate-200 bg-slate-50 space-y-3 text-xs">
+        <!-- Coupon input -->
+        <div class="flex gap-2">
+          <input type="text" id="coupon-input" placeholder="Coupon (e.g. WELCOME50)" class="flex-grow px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs uppercase" />
+          <button onclick="applyCoupon()" class="px-3 py-2 bg-slate-800 text-white rounded-lg font-semibold">Apply</button>
+        </div>
+
+        <div class="space-y-1.5 text-slate-600">
+          <div class="flex justify-between"><span>Subtotal:</span> <span id="cart-subtotal" class="font-semibold text-slate-800">₹0.00</span></div>
+          <div class="flex justify-between"><span>GST / Taxes (5%):</span> <span id="cart-tax" class="font-semibold text-slate-800">₹0.00</span></div>
+          <div class="flex justify-between"><span>Delivery Fee:</span> <span id="cart-delivery" class="font-semibold text-slate-800">₹40.00</span></div>
+          <div id="cart-discount-row" class="flex justify-between text-emerald-600 hidden"><span>Discount:</span> <span id="cart-discount" class="font-semibold">-₹0.00</span></div>
+          <div class="border-t border-slate-200 pt-2 flex justify-between font-bold text-sm text-slate-900">
+            <span>Total Payable:</span> <span id="cart-total" class="text-orange-600">₹0.00</span>
+          </div>
+        </div>
+
+        <!-- Payment Method -->
+        <div class="pt-2">
+          <label class="block font-medium text-slate-700 mb-1">Select Payment Method:</label>
+          <div class="grid grid-cols-2 gap-2">
+            <label class="border border-slate-300 rounded-lg p-2.5 flex items-center gap-2 cursor-pointer bg-white">
+              <input type="radio" name="payMethod" value="ONLINE_SIMULATED" checked />
+              <span>Online Payment</span>
+            </label>
+            <label class="border border-slate-300 rounded-lg p-2.5 flex items-center gap-2 cursor-pointer bg-white">
+              <input type="radio" name="payMethod" value="CASH_ON_DELIVERY" />
+              <span>Cash on Delivery</span>
+            </label>
+          </div>
+        </div>
+
+        <button onclick="checkoutOrder()" id="checkout-btn" class="w-full py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-bold text-sm shadow-md transition-all">
+          Confirm & Place Order (₹<span id="btn-pay-amount">0.00</span>)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ORDER TRACKING TIMELINE MODAL -->
+  <div id="order-tracker-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+      <div class="flex justify-between items-start border-b border-slate-100 pb-3">
+        <div>
+          <span class="text-[11px] font-bold text-orange-600 tracking-wider uppercase">Live Order Tracking</span>
+          <h3 id="track-order-id" class="text-lg font-extrabold text-slate-900">Order #...</h3>
+        </div>
+        <button onclick="closeTracker()" class="text-slate-400 hover:text-slate-600 p-1">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <!-- Lifecycle Stepper -->
+      <div class="space-y-3 py-2">
+        <div id="step-placed" class="flex items-center gap-3 text-xs">
+          <div class="w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold">1</div>
+          <div><div class="font-bold text-slate-800">Order Placed</div><div class="text-slate-400 text-[10px]">Saved in PostgreSQL & queued to RabbitMQ</div></div>
+        </div>
+        <div id="step-kitchen" class="flex items-center gap-3 text-xs">
+          <div class="w-7 h-7 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center font-bold">2</div>
+          <div><div class="font-bold text-slate-800">Kitchen Preparing</div><div class="text-slate-400 text-[10px]">Chef cooking with atomic queue lock</div></div>
+        </div>
+        <div id="step-ready" class="flex items-center gap-3 text-xs">
+          <div class="w-7 h-7 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center font-bold">3</div>
+          <div><div class="font-bold text-slate-800">Ready for Pickup</div><div class="text-slate-400 text-[10px]">Packaged and waiting for rider</div></div>
+        </div>
+        <div id="step-delivery" class="flex items-center gap-3 text-xs">
+          <div class="w-7 h-7 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center font-bold">4</div>
+          <div><div class="font-bold text-slate-800">Out for Delivery</div><div class="text-slate-400 text-[10px]">Rider assigned via proximity algorithm</div></div>
+        </div>
+        <div id="step-delivered" class="flex items-center gap-3 text-xs">
+          <div class="w-7 h-7 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center font-bold">5</div>
+          <div><div class="font-bold text-slate-800">Delivered</div><div class="text-slate-400 text-[10px]">Completed safely</div></div>
+        </div>
+      </div>
+
+      <!-- Order details in modal -->
+      <div id="track-order-details" class="bg-slate-50 p-3 rounded-xl text-xs space-y-1 text-slate-600">
+      </div>
+
+      <button onclick="closeTracker()" class="w-full py-2.5 bg-slate-900 text-white rounded-xl text-xs font-semibold">
+        Close Tracker
+      </button>
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT FRONTEND LOGIC -->
+  <script>
+    const API_BASE = window.location.origin; // Same gateway host
+    let currentRole = 'customer';
+    let restaurants = [];
+    let cart = [];
+    let appliedCoupon = null;
+    let activeTrackedOrderId = null;
+
+    // Initialize application
+    window.addEventListener('DOMContentLoaded', async () => {
+      await loadRestaurants();
+      await refreshHealth();
+      setInterval(refreshHealth, 8000);
+    });
+
+    // 1. Role Switcher
+    function switchRole(role) {
+      currentRole = role;
+      document.querySelectorAll('.role-btn').forEach(btn => {
+        btn.classList.remove('bg-orange-600', 'text-white', 'shadow-sm');
+        btn.classList.add('text-slate-300');
+      });
+      const activeBtn = document.getElementById(`btn-role-${role}`);
+      if (activeBtn) {
+        activeBtn.classList.add('bg-orange-600', 'text-white', 'shadow-sm');
+        activeBtn.classList.remove('text-slate-300');
+      }
+
+      ['customer', 'kitchen', 'delivery', 'restaurant', 'admin'].forEach(v => {
+        document.getElementById(`view-${v}`).classList.add('hidden');
+      });
+      document.getElementById(`view-${role}`).classList.remove('hidden');
+
+      if (role === 'kitchen') loadKitchenDashboard();
+      if (role === 'delivery') loadDeliveryDashboard();
+      if (role === 'restaurant') loadRestaurantDashboard();
+      if (role === 'admin') refreshHealth();
+    }
+
+    // 2. Load Restaurants
+    async function loadRestaurants(cuisine = '') {
+      try {
+        const url = cuisine ? `${API_BASE}/api/restaurants?cuisine=${cuisine}` : `${API_BASE}/api/restaurants`;
+        const res = await fetch(url);
+        const json = await res.json();
+        restaurants = json.data || [];
+
+        const indicator = document.getElementById('cache-indicator');
+        if (json.source === 'CACHE_HIT') {
+          indicator.innerHTML = `<i class="fa-solid fa-bolt mr-1"></i> Cache HIT (${json.cacheLatencyMs || 0}ms)`;
+          indicator.className = 'text-xs font-medium text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200';
+        } else {
+          indicator.innerHTML = `<i class="fa-solid fa-database mr-1"></i> Cache MISS (PostgreSQL DB ${json.queryLatencyMs || 0}ms)`;
+          indicator.className = 'text-xs font-medium text-blue-600 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200';
+        }
+
+        renderRestaurants(restaurants);
+      } catch (err) {
+        document.getElementById('restaurants-grid').innerHTML = `<div class="col-span-full py-8 text-center text-red-500 font-medium">Failed to connect to API Gateway: ${err.message}</div>`;
+      }
+    }
+
+    function renderRestaurants(list) {
+      const grid = document.getElementById('restaurants-grid');
+      if (list.length === 0) {
+        grid.innerHTML = '<div class="col-span-full py-8 text-center text-slate-400">No restaurants match your filter.</div>';
+        return;
+      }
+      grid.innerHTML = list.map(r => `
+        <div class="bg-white rounded-2xl overflow-hidden border border-slate-200/80 shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
+          <div>
+            <div class="h-36 bg-slate-200 relative overflow-hidden">
+              <img src="https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=500" alt="${r.name}" class="w-full h-full object-cover" />
+              <div class="absolute top-3 right-3 px-2 py-0.5 bg-white/95 rounded-lg text-xs font-bold text-slate-800 shadow-sm flex items-center gap-1">
+                <i class="fa-solid fa-star text-amber-500 text-[10px]"></i> ${r.rating}
+              </div>
+            </div>
+            <div class="p-4 space-y-2">
+              <h3 class="font-bold text-slate-900 text-base leading-snug">${r.name}</h3>
+              <p class="text-xs text-slate-500 line-clamp-2">${r.description || r.cuisine}</p>
+              <div class="flex items-center gap-3 text-xs text-slate-600 pt-1">
+                <span><i class="fa-solid fa-clock text-slate-400 mr-1"></i> ${r.estimatedDeliveryTimeMin || 25} mins</span>
+                <span><i class="fa-solid fa-location-dot text-slate-400 mr-1"></i> ${r.distanceKm || 1.2} km</span>
+              </div>
+            </div>
+          </div>
+          <div class="p-4 pt-0">
+            <button onclick="viewMenu('${r.id}')" class="w-full py-2 bg-slate-900 hover:bg-orange-600 text-white rounded-xl text-xs font-semibold transition-all">
+              View Menu & Order
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function filterRestaurants() {
+      const q = document.getElementById('cust-search').value.toLowerCase();
+      const filtered = restaurants.filter(r => r.name.toLowerCase().includes(q) || r.cuisine.toLowerCase().includes(q));
+      renderRestaurants(filtered);
+    }
+
+    function setFilterCuisine(c) {
+      loadRestaurants(c);
+    }
+
+    // 3. View Menu Items
+    async function viewMenu(restId) {
+      const res = await fetch(`${API_BASE}/api/restaurants/${restId}`);
+      const json = await res.json();
+      const rest = json.data;
+      if (!rest) return;
+
+      const items = (rest.categories || []).flatMap(c => c.items || []);
+      const menuHtml = items.map(item => `
+        <div class="p-3 bg-white border border-slate-200 rounded-xl flex items-center justify-between gap-3 shadow-sm">
+          <div>
+            <div class="flex items-center gap-1.5">
+              <span class="w-2.5 h-2.5 rounded-full ${item.is_veg ? 'bg-emerald-500' : 'bg-red-500'}"></span>
+              <h4 class="font-bold text-slate-900 text-xs">${item.name}</h4>
+            </div>
+            <p class="text-[11px] text-slate-500 line-clamp-1">${item.description || ''}</p>
+            <div class="font-bold text-xs text-slate-900 mt-1">₹${Number(item.price).toFixed(2)}</div>
+          </div>
+          <button onclick="addToCart('${item.id}', '${item.name}', ${item.price}, '${rest.id}')" class="px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-xs font-bold shrink-0">
+            + Add
+          </button>
+        </div>
+      `).join('');
+
+      openCart();
+      document.getElementById('cart-items-list').innerHTML = `
+        <div class="mb-4">
+          <h4 class="font-bold text-slate-900 text-sm">${rest.name} Menu</h4>
+          <p class="text-xs text-slate-500">Select items to add to cart</p>
+        </div>
+        <div class="space-y-2 mb-4">${menuHtml}</div>
+        <div class="border-t border-slate-200 pt-3">
+          <h4 class="font-bold text-slate-800 text-xs mb-2">Cart Items:</h4>
+          ${renderCurrentCartItems()}
+        </div>
+      `;
+    }
+
+    function addToCart(itemId, name, price, restId) {
+      const existing = cart.find(i => i.id === itemId);
+      if (existing) {
+        existing.quantity += 1;
+      } else {
+        cart.push({ id: itemId, name, price: Number(price), quantity: 1, restaurantId: restId });
+      }
+      updateCartUI();
+    }
+
+    function updateCartUI() {
+      const count = cart.reduce((sum, i) => sum + i.quantity, 0);
+      document.getElementById('cart-count-badge').textContent = count;
+
+      let subtotal = 0;
+      for (const item of cart) {
+        subtotal += item.price * item.quantity;
+      }
+
+      const tax = Number((subtotal * 0.05).toFixed(2));
+      const delivery = subtotal > 500 || subtotal === 0 ? 0.00 : 40.00;
+      let discount = 0.00;
+      if (appliedCoupon === 'WELCOME50' && subtotal > 0) {
+        discount = Math.min(100.00, Number((subtotal * 0.20).toFixed(2)));
+        document.getElementById('cart-discount-row').classList.remove('hidden');
+        document.getElementById('cart-discount').textContent = `-₹${discount.toFixed(2)}`;
+      } else {
+        document.getElementById('cart-discount-row').classList.add('hidden');
+      }
+
+      const total = Math.max(0, subtotal + tax + delivery - discount);
+
+      document.getElementById('cart-subtotal').textContent = `₹${subtotal.toFixed(2)}`;
+      document.getElementById('cart-tax').textContent = `₹${tax.toFixed(2)}`;
+      document.getElementById('cart-delivery').textContent = `₹${delivery.toFixed(2)}`;
+      document.getElementById('cart-total').textContent = `₹${total.toFixed(2)}`;
+      document.getElementById('btn-pay-amount').textContent = total.toFixed(2);
+    }
+
+    function renderCurrentCartItems() {
+      if (cart.length === 0) return '<div class="text-xs text-slate-400">Cart is empty.</div>';
+      return cart.map(item => `
+        <div class="flex justify-between items-center text-xs py-1 border-b border-slate-100">
+          <span class="font-medium text-slate-700">${item.name} × ${item.quantity}</span>
+          <span class="font-bold text-slate-900">₹${(item.price * item.quantity).toFixed(2)}</span>
+        </div>
+      `).join('');
+    }
+
+    function openCart() {
+      document.getElementById('cart-drawer').classList.remove('hidden');
+      updateCartUI();
+    }
+
+    function closeCart() {
+      document.getElementById('cart-drawer').classList.add('hidden');
+    }
+
+    function applyCoupon() {
+      const code = document.getElementById('coupon-input').value.trim().toUpperCase();
+      if (code === 'WELCOME50') {
+        appliedCoupon = code;
+        alert('Coupon WELCOME50 applied! 20% discount added.');
+        updateCartUI();
+      } else {
+        alert('Invalid coupon code. Try WELCOME50');
+      }
+    }
+
+    // 4. Checkout Order
+    async function checkoutOrder() {
+      if (cart.length === 0) {
+        alert('Please add items to your cart first.');
+        return;
+      }
+
+      const restId = cart[0].restaurantId || 'rest_burger_1';
+      const payMethod = document.querySelector('input[name="payMethod"]:checked').value;
+      const idempotencyKey = `idem_web_${Date.now()}`;
+
+      try {
+        const res = await fetch(`${API_BASE}/api/orders`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Idempotency-Key': idempotencyKey
+          },
+          body: JSON.stringify({
+            user_id: 'usr_customer_1',
+            restaurant_id: restId,
+            delivery_address_id: 'addr_cust_1',
+            items: cart.map(i => ({ menu_item_id: i.id, quantity: i.quantity })),
+            payment_method: payMethod,
+            coupon_code: appliedCoupon
+          })
+        });
+
+        const json = await res.json();
+        if (json.success) {
+          cart = [];
+          closeCart();
+          updateCartUI();
+          activeTrackedOrderId = json.data.id;
+          // Online payments are simulated: the payment service (behind a circuit breaker) confirms the order.
+          // If it is unavailable the order simply stays PAYMENT_PENDING.
+          if (json.data.status === 'PAYMENT_PENDING') {
+            try {
+              await fetch(`${API_BASE}/api/payments/process`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  orderId: json.data.id,
+                  amount: json.data.total_amount,
+                  method: payMethod,
+                  idempotencyKey: `pay_${json.data.id}`
+                })
+              });
+            } catch (e) { /* order stays PAYMENT_PENDING */ }
+          }
+          openTracker(json.data.id);
+        } else {
+          alert(`Checkout failed: ${json.message}`);
+        }
+      } catch (err) {
+        alert(`Network error: ${err.message}`);
+      }
+    }
+
+    // 5. Live Order Tracking
+    async function openTracker(orderId) {
+      document.getElementById('order-tracker-modal').classList.remove('hidden');
+      document.getElementById('track-order-id').textContent = `Order #${orderId}`;
+      pollOrderStatus(orderId);
+    }
+
+    function closeTracker() {
+      document.getElementById('order-tracker-modal').classList.add('hidden');
+    }
+
+    async function pollOrderStatus(orderId) {
+      try {
+        const res = await fetch(`${API_BASE}/api/orders/${orderId}`);
+        const json = await res.json();
+        const order = json.data;
+        if (!order) return;
+
+        const detailsDiv = document.getElementById('track-order-details');
+        detailsDiv.innerHTML = `
+          <div><strong>Status:</strong> <span class="font-bold text-orange-600">${order.status}</span></div>
+          <div><strong>Total:</strong> ₹${Number(order.total_amount).toFixed(2)} (${order.payment_method})</div>
+          <div><strong>Restaurant:</strong> ${order.restaurant ? order.restaurant.name : 'Restaurant'}</div>
+          <div><strong>Delivery to:</strong> Sector 21, Gandhinagar Highway</div>
+        `;
+
+        // Update Stepper Highlights
+        const statuses = ['PLACED', 'PREPARING', 'READY_FOR_PICKUP', 'OUT_FOR_DELIVERY', 'DELIVERED'];
+        const currentIdx = statuses.indexOf(order.status);
+
+        ['step-placed', 'step-kitchen', 'step-ready', 'step-delivery', 'step-delivered'].forEach((stepId, idx) => {
+          const el = document.getElementById(stepId);
+          const circle = el.querySelector('div');
+          if (idx <= Math.max(0, currentIdx)) {
+            circle.className = 'w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold';
+          } else {
+            circle.className = 'w-7 h-7 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center font-bold';
+          }
+        });
+      } catch (e) {}
+    }
+
+    // 6. Kitchen Dashboard
+    async function loadKitchenDashboard() {
+      const res = await fetch(`${API_BASE}/api/kitchen/dashboard`);
+      const json = await res.json();
+      const data = json.data;
+      if (!data) return;
+
+      document.getElementById('kitchen-load-pct').textContent = `${data.workloadPercentage}%`;
+      document.getElementById('kitchen-load-bar').style.width = `${data.workloadPercentage}%`;
+      document.getElementById('kitchen-capacity').textContent = data.capacity;
+
+      const container = document.getElementById('kitchen-queue-container');
+      if (data.queue.length === 0) {
+        container.innerHTML = '<div class="col-span-full py-8 text-center text-slate-400">Kitchen queue is empty. Place an order to see it appear here!</div>';
+        return;
+      }
+
+      container.innerHTML = data.queue.map(entry => `
+        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+          <div class="flex justify-between items-start">
+            <div>
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${entry.priority > 1 ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'}">
+                Priority: ${entry.priority === 3 ? 'VIP' : entry.priority === 2 ? 'High' : 'Normal'}
+              </span>
+              <h4 class="font-bold text-slate-900 text-sm mt-1">Order #${entry.order_id.slice(-6)}</h4>
+            </div>
+            <span class="text-xs font-bold px-2.5 py-1 rounded-lg ${entry.status === 'PREPARING' ? 'bg-amber-100 text-amber-800' : entry.status === 'READY' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'}">
+              ${entry.status}
+            </span>
+          </div>
+
+          <div class="text-xs text-slate-600 space-y-1 bg-slate-50 p-2.5 rounded-xl">
+            ${(entry.items || []).map(i => `<div>• ${i.item_name} × ${i.quantity}</div>`).join('')}
+          </div>
+
+          <div class="text-[11px] text-slate-500 flex justify-between">
+            <span>Lock: <strong>${entry.locked_by ? `Locked by ${entry.locked_by}` : 'Unlocked'}</strong></span>
+            <span>Progress: <strong>${entry.progress_percentage}%</strong></span>
+          </div>
+
+          <div class="flex gap-2 pt-1">
+            ${entry.status === 'WAITING' ? `
+              <button onclick="startKitchenPrep('${entry.order_id}')" class="flex-1 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold shadow-sm">
+                <i class="fa-solid fa-lock mr-1"></i> Start Prep (Lock)
+              </button>
+            ` : entry.status === 'PREPARING' ? `
+              <button onclick="markKitchenReady('${entry.order_id}')" class="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-sm">
+                <i class="fa-solid fa-check mr-1"></i> Mark Ready
+              </button>
+            ` : `
+              <span class="text-xs font-semibold text-emerald-600 py-2"><i class="fa-solid fa-circle-check mr-1"></i> Ready for Pickup</span>
+            `}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function startKitchenPrep(orderId) {
+      const res = await fetch(`${API_BASE}/api/kitchen/orders/${orderId}/start-prep`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cookId: 'cook_1', cookName: 'Chef Gordon' })
+      });
+      const json = await res.json();
+      if (!json.success) alert(json.message);
+      loadKitchenDashboard();
+    }
+
+    async function markKitchenReady(orderId) {
+      await fetch(`${API_BASE}/api/kitchen/orders/${orderId}/mark-ready`, { method: 'POST' });
+      loadKitchenDashboard();
+    }
+
+    // 7. Delivery Dashboard
+    async function loadDeliveryDashboard() {
+      const res = await fetch(`${API_BASE}/api/delivery/dashboard`);
+      const json = await res.json();
+      const assignments = json.data?.assignments || [];
+
+      const container = document.getElementById('delivery-assignments-container');
+      if (assignments.length === 0) {
+        container.innerHTML = '<div class="col-span-full py-8 text-center text-slate-400">No active delivery assignments. Mark an order ready to trigger dispatch!</div>';
+        return;
+      }
+
+      container.innerHTML = assignments.map(a => `
+        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+          <div class="flex justify-between items-start">
+            <div>
+              <span class="text-xs font-semibold text-slate-500">Assignment #${a.id.slice(-6)}</span>
+              <h4 class="font-bold text-slate-900 text-base">Order #${a.order_id.slice(-6)}</h4>
+            </div>
+            <span class="px-2.5 py-1 bg-blue-100 text-blue-800 rounded-lg text-xs font-bold">${a.status}</span>
+          </div>
+          <div class="text-xs text-slate-600 space-y-1">
+            <div>Pickup: <strong>${a.restaurant ? a.restaurant.name : 'The Gourmet Burger Co.'}</strong></div>
+            <div>Distance: <strong>${a.distance_km || 1.8} km</strong></div>
+            <div>Delivery to: <strong>Sector 21, Gandhinagar Highway</strong></div>
+          </div>
+          <div class="pt-2 flex gap-2">
+            ${a.status === 'ASSIGNED' ? `
+              <button onclick="confirmPickup('${a.id}')" class="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold">
+                Confirm Pickup
+              </button>
+            ` : a.status === 'PICKED_UP' ? `
+              <button onclick="confirmDelivery('${a.id}')" class="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold">
+                Confirm Delivered
+              </button>
+            ` : `<span class="text-xs text-emerald-600 font-bold py-2"><i class="fa-solid fa-check-double mr-1"></i> Delivered</span>`}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function confirmPickup(id) {
+      await fetch(`${API_BASE}/api/delivery/${id}/pickup`, { method: 'POST' });
+      loadDeliveryDashboard();
+    }
+
+    async function confirmDelivery(id) {
+      await fetch(`${API_BASE}/api/delivery/${id}/deliver`, { method: 'POST' });
+      loadDeliveryDashboard();
+    }
+
+    // 8. Restaurant Dashboard & Cache Invalidation
+    async function loadRestaurantDashboard() {
+      const res = await fetch(`${API_BASE}/api/restaurants/rest_burger_1`);
+      const json = await res.json();
+      const rest = json.data;
+      const container = document.getElementById('menu-management-container');
+
+      const items = (rest.categories || []).flatMap(c => c.items || []);
+      container.innerHTML = items.map(item => `
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between gap-4">
+          <div>
+            <h4 class="font-bold text-slate-900 text-sm">${item.name}</h4>
+            <div class="text-xs text-slate-500">Current Price: ₹${Number(item.price).toFixed(2)} | Available: ${item.is_available ? 'Yes' : 'No'}</div>
+          </div>
+          <div class="flex items-center gap-2">
+            <input type="number" id="price-${item.id}" value="${item.price}" class="w-24 px-2 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold" />
+            <button onclick="updatePrice('${rest.id}', '${item.id}')" class="px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-xs font-bold shadow-sm">
+              Update & Invalidate Cache
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function updatePrice(restId, itemId) {
+      const newPrice = document.getElementById(`price-${itemId}`).value;
+      const res = await fetch(`${API_BASE}/api/restaurants/${restId}/menu/${itemId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ price: Number(newPrice) })
+      });
+      const json = await res.json();
+      alert(json.message);
+      loadRestaurantDashboard();
+    }
+
+    async function purgeCache() {
+      await fetch(`${API_BASE}/api/restaurants/cache/purge`, { method: 'POST' });
+      alert('Redis cache purged successfully!');
+    }
+
+    // 9. Admin Health Matrix & Metrics
+    async function refreshHealth() {
+      try {
+        const res = await fetch(`${API_BASE}/health`);
+        const json = await res.json();
+
+        const grid = document.getElementById('health-grid');
+        const nodes = [
+          { name: 'API Gateway', status: json.gateway },
+          { name: 'Auth Service', status: json.services.auth },
+          { name: 'Restaurant Service', status: json.services.restaurant },
+          { name: 'Order Service', status: json.services.order },
+          { name: 'Kitchen Service', status: json.services.kitchen },
+          { name: 'Payment Service', status: json.services.payment },
+          { name: 'Delivery Service', status: json.services.delivery },
+          { name: 'Notification Service', status: json.services.notification },
+          { name: 'PostgreSQL DB', status: json.database },
+          { name: 'Redis Cache', status: json.redis },
+          { name: 'RabbitMQ Broker', status: json.rabbitmq }
+        ];
+
+        grid.innerHTML = nodes.map(n => `
+          <div class="p-3 rounded-xl border ${n.status === 'healthy' ? 'bg-emerald-50/60 border-emerald-200 text-emerald-800' : 'bg-red-50 border-red-200 text-red-800'} flex items-center justify-between">
+            <span class="font-semibold">${n.name}</span>
+            <span class="w-2.5 h-2.5 rounded-full ${n.status === 'healthy' ? 'bg-emerald-500' : 'bg-red-500'}"></span>
+          </div>
+        `).join('');
+
+        // Admin metrics
+        const adminRes = await fetch(`${API_BASE}/api/admin/overview`);
+        const adminJson = await adminRes.json();
+        if (adminJson.data) {
+          document.getElementById('metric-orders').textContent = adminJson.data.totalOrders;
+          document.getElementById('metric-revenue').textContent = `₹${adminJson.data.totalRevenue.toFixed(2)}`;
+          document.getElementById('metric-kitchen').textContent = adminJson.data.activeKitchenOrders;
+          document.getElementById('metric-deliveries').textContent = adminJson.data.deliveryAssignments;
+        }
+
+        // Circuit Breaker status
+        const cbRes = await fetch(`${API_BASE}/api/payments/circuit-breaker/status`);
+        const cbJson = await cbRes.json();
+        if (cbJson.data) {
+          const badge = document.getElementById('circuit-state-badge');
+          badge.textContent = cbJson.data.state;
+          badge.className = `px-3 py-1 rounded-full text-xs font-bold ${cbJson.data.state === 'CLOSED' ? 'badge-closed' : cbJson.data.state === 'OPEN' ? 'badge-open' : 'badge-half-open'}`;
+          document.getElementById('circuit-fail-count').textContent = `${cbJson.data.failureCount} / ${cbJson.data.failureThreshold}`;
+        }
+      } catch (e) {}
+    }
+
+    // 10. Rate Limiter Burst Test
+    async function fireBurstRequests(count) {
+      const logBox = document.getElementById('rate-limit-log');
+      logBox.innerHTML += `<div class="text-amber-400">>>> Initiating burst of ${count} requests to API Gateway...</div>`;
+
+      let allowed = 0;
+      let blocked = 0;
+      let remaining = 20;
+
+      for (let i = 1; i <= count; i++) {
+        const res = await fetch(`${API_BASE}/api/restaurants`);
+        if (res.status === 200) {
+          allowed++;
+          remaining = Math.max(0, remaining - 1);
+          logBox.innerHTML += `<div class="text-emerald-400">[HTTP 200] Req #${i}: Allowed by Token Bucket. Remaining: ${remaining}</div>`;
+        } else if (res.status === 429) {
+          blocked++;
+          const data = await res.json();
+          logBox.innerHTML += `<div class="text-red-400 font-bold">[HTTP 429] Req #${i}: RATE LIMIT EXCEEDED. RetryAfter: ${data.retryAfter}s</div>`;
+        }
+        logBox.scrollTop = logBox.scrollHeight;
+      }
+
+      document.getElementById('rate-tokens-display').textContent = `${remaining} / 20`;
+      document.getElementById('rate-tokens-bar').style.width = `${(remaining / 20) * 100}%`;
+      logBox.innerHTML += `<div class="text-slate-400 font-bold">--- Burst Done. Allowed: ${allowed}, Blocked: ${blocked} ---</div>`;
+    }
+
+    async function resetRateLimit() {
+      await fetch(`${API_BASE}/api/ratelimit/reset`, { method: 'POST' });
+      document.getElementById('rate-tokens-display').textContent = '20 / 20';
+      document.getElementById('rate-tokens-bar').style.width = '100%';
+      document.getElementById('rate-limit-log').innerHTML = '<div class="text-emerald-400">Tokens refilled to 20.</div>';
+    }
+
+    // 11. Circuit Breaker Test
+    async function testPayment(forceFail) {
+      const logBox = document.getElementById('circuit-log');
+      logBox.innerHTML += `<div class="text-amber-400">>>> Sending Payment Request (Simulate Fail: ${forceFail})...</div>`;
+
+      const res = await fetch(`${API_BASE}/api/payments/process`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: 'ord_demo_1001',
+          amount: 500,
+          forceFail
+        })
+      });
+
+      const json = await res.json();
+      if (res.status === 200) {
+        logBox.innerHTML += `<div class="text-emerald-400">[HTTP 200] Success: ${json.message} (Circuit: ${json.circuitState})</div>`;
+      } else if (res.status === 503) {
+        logBox.innerHTML += `<div class="text-red-400 font-bold">[HTTP 503 Fast-Fallback] Circuit is OPEN! ${json.message}</div>`;
+      } else {
+        logBox.innerHTML += `<div class="text-amber-400">[HTTP ${res.status}] ${json.message} (Circuit: ${json.circuitState})</div>`;
+      }
+
+      logBox.scrollTop = logBox.scrollHeight;
+      refreshHealth();
+    }
+
+    async function resetCircuit() {
+      await fetch(`${API_BASE}/api/payments/circuit-breaker/reset`, { method: 'POST' });
+      document.getElementById('circuit-log').innerHTML = '<div class="text-emerald-400">Circuit Breaker reset to CLOSED.</div>';
+      refreshHealth();
+    }
+  </script>
+</body>
+</html>
